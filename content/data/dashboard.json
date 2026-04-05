@@ -1,0 +1,356 @@
+{
+  "headline": {
+    "totalDamageEok": 12901,
+    "totalCases": 14629,
+    "periodStart": "2023-09",
+    "periodEnd": "2025-09",
+    "dailyAverage": 18,
+    "avgDamagePerCaseMan": 9200,
+    "lastUpdated": "2026-04-05"
+  },
+  "yearly": [
+    {
+      "year": 2023,
+      "label": "2023 (9~12월)",
+      "cases": 1452,
+      "damageEok": 1266,
+      "arrests": 0
+    },
+    {
+      "year": 2024,
+      "label": "2024",
+      "cases": 8104,
+      "damageEok": 7104,
+      "arrests": 3300
+    },
+    {
+      "year": 2025,
+      "label": "2025",
+      "cases": 6853,
+      "damageEok": 6581,
+      "arrests": 1881
+    }
+  ],
+  "monthly": [
+    {
+      "month": "2024-01",
+      "cases": 615,
+      "damageEok": 536
+    },
+    {
+      "month": "2024-02",
+      "cases": 628,
+      "damageEok": 548
+    },
+    {
+      "month": "2024-03",
+      "cases": 642,
+      "damageEok": 560
+    },
+    {
+      "month": "2024-04",
+      "cases": 672,
+      "damageEok": 584
+    },
+    {
+      "month": "2024-05",
+      "cases": 698,
+      "damageEok": 607
+    },
+    {
+      "month": "2024-06",
+      "cases": 714,
+      "damageEok": 623
+    },
+    {
+      "month": "2024-07",
+      "cases": 731,
+      "damageEok": 640
+    },
+    {
+      "month": "2024-08",
+      "cases": 742,
+      "damageEok": 652
+    },
+    {
+      "month": "2024-09",
+      "cases": 706,
+      "damageEok": 615
+    },
+    {
+      "month": "2024-10",
+      "cases": 682,
+      "damageEok": 598
+    },
+    {
+      "month": "2024-11",
+      "cases": 651,
+      "damageEok": 578
+    },
+    {
+      "month": "2024-12",
+      "cases": 623,
+      "damageEok": 563
+    },
+    {
+      "month": "2025-01",
+      "cases": 514,
+      "damageEok": 494
+    },
+    {
+      "month": "2025-02",
+      "cases": 526,
+      "damageEok": 505
+    },
+    {
+      "month": "2025-03",
+      "cases": 538,
+      "damageEok": 518
+    },
+    {
+      "month": "2025-04",
+      "cases": 562,
+      "damageEok": 540
+    },
+    {
+      "month": "2025-05",
+      "cases": 588,
+      "damageEok": 565
+    },
+    {
+      "month": "2025-06",
+      "cases": 606,
+      "damageEok": 582
+    },
+    {
+      "month": "2025-07",
+      "cases": 624,
+      "damageEok": 600
+    },
+    {
+      "month": "2025-08",
+      "cases": 632,
+      "damageEok": 611
+    },
+    {
+      "month": "2025-09",
+      "cases": 596,
+      "damageEok": 575
+    },
+    {
+      "month": "2025-10",
+      "cases": 575,
+      "damageEok": 554
+    },
+    {
+      "month": "2025-11",
+      "cases": 554,
+      "damageEok": 523
+    },
+    {
+      "month": "2025-12",
+      "cases": 538,
+      "damageEok": 514
+    }
+  ],
+  "fraudTypes": [
+    {
+      "type": "선행매매",
+      "percentage": 28,
+      "description": "리더가 먼저 매수 후 시그널 발행"
+    },
+    {
+      "type": "수익률 조작",
+      "percentage": 25,
+      "description": "승리 시그널만 선별 공개"
+    },
+    {
+      "type": "다단계 모집",
+      "percentage": 20,
+      "description": "가입비가 기존 회원 수익으로"
+    },
+    {
+      "type": "펌프앤덤프",
+      "percentage": 15,
+      "description": "저유동성 코인 시세 조종"
+    },
+    {
+      "type": "고액 수수료 잠금",
+      "percentage": 12,
+      "description": "환불 불가 + 장기 선납 유도"
+    }
+  ],
+  "platformBreakdown": [
+    {
+      "platform": "텔레그램",
+      "percentage": 62
+    },
+    {
+      "platform": "카카오톡",
+      "percentage": 22
+    },
+    {
+      "platform": "디스코드",
+      "percentage": 8
+    },
+    {
+      "platform": "기타",
+      "percentage": 8
+    }
+  ],
+  "majorEnforcements": [
+    {
+      "date": "2024-11-13",
+      "title": "62만 유튜버 코인 사기 조직 검거",
+      "damageEok": 3256,
+      "victims": 15304,
+      "arrests": 215,
+      "source": "경찰청"
+    },
+    {
+      "date": "2025-11-19",
+      "title": "부산 코인/비상장주식 투자리딩방 사기",
+      "damageEok": 245,
+      "victims": 284,
+      "arrests": 118,
+      "source": "경찰청"
+    },
+    {
+      "date": "2025-11-06",
+      "title": "캄보디아 거점 불법 투자 리딩방",
+      "damageEok": 194,
+      "victims": 229,
+      "arrests": 54,
+      "source": "경찰청/금감원"
+    },
+    {
+      "date": "2025-10-15",
+      "title": "전남 비상장주식 리딩방 사기단",
+      "damageEok": 210,
+      "victims": 460,
+      "arrests": 51,
+      "source": "경찰청"
+    },
+    {
+      "date": "2025-02-26",
+      "title": "17개월간 투자리딩방 특별단속 결과",
+      "damageEok": 0,
+      "victims": 0,
+      "arrests": 3300,
+      "source": "경찰청"
+    },
+    {
+      "date": "2024-07-19",
+      "title": "가상자산이용자보호법 시행",
+      "damageEok": 0,
+      "victims": 0,
+      "arrests": 0,
+      "source": "금융위원회",
+      "isRegulation": true
+    },
+    {
+      "date": "2024-08-14",
+      "title": "개정 자본시장법 시행 — 양방향 리딩방 금지",
+      "damageEok": 0,
+      "victims": 0,
+      "arrests": 0,
+      "source": "금융위원회",
+      "isRegulation": true
+    },
+    {
+      "date": "2025-12-01",
+      "title": "사기죄 형량 상향 — 최대 30년",
+      "damageEok": 0,
+      "victims": 0,
+      "arrests": 0,
+      "source": "국회",
+      "isRegulation": true
+    }
+  ],
+  "fssInspection": {
+    "totalFirms": 700,
+    "violationFirms": 112,
+    "violationRate": 16,
+    "year": 2025,
+    "source": "금감원"
+  },
+  "marketContext": {
+    "totalInvestors": 10770000,
+    "dailyVolumeBillion": 6400,
+    "registeredVASPs": 27,
+    "lastUpdated": "2025-06"
+  },
+  "dataSources": [
+    {
+      "name": "경찰청 국가수사본부",
+      "type": "피해 통계",
+      "url": "https://www.police.go.kr"
+    },
+    {
+      "name": "금융감독원",
+      "type": "유사투자자문업 점검",
+      "url": "https://www.fss.or.kr"
+    },
+    {
+      "name": "금융위원회",
+      "type": "가상자산 실태조사",
+      "url": "https://www.fsc.go.kr"
+    },
+    {
+      "name": "공공데이터포털",
+      "type": "사이버사기범죄 현황",
+      "url": "https://www.data.go.kr"
+    }
+  ],
+  "news": [
+    {
+      "date": "2026-04-02",
+      "title": "금감원, 2026년 상반기 유사투자자문업 특별점검 예고",
+      "summary": "금융감독원이 리딩방 피해 급증에 따라 상반기 중 유사투자자문업자 전수 점검을 실시할 계획이라고 밝혔습니다.",
+      "category": "규제",
+      "source": "금감원"
+    },
+    {
+      "date": "2026-03-28",
+      "title": "텔레그램 기반 리딩방 사기단 47명 검거 — 피해액 180억원",
+      "summary": "서울경찰청 사이버수사대가 텔레그램에서 가상자산 리딩방을 운영하며 180억원을 편취한 사기단 47명을 검거했습니다.",
+      "category": "적발",
+      "source": "경찰청"
+    },
+    {
+      "date": "2026-03-21",
+      "title": "카카오톡, 불법 리딩방 AI 탐지 시스템 고도화 발표",
+      "summary": "카카오가 2024년 8월 이후 누적 5.2만건의 불법 리딩방을 적발한 AI 시스템을 고도화하여 실시간 탐지 범위를 확대합니다.",
+      "category": "플랫폼",
+      "source": "카카오"
+    },
+    {
+      "date": "2026-03-15",
+      "title": "금융위, 가상자산 불공정거래 3건 추가 고발 의결",
+      "summary": "금융위원회가 가상자산이용자보호법에 따라 시세조종 행위 3건에 대해 수사기관 고발을 의결했습니다.",
+      "category": "규제",
+      "source": "금융위"
+    },
+    {
+      "date": "2026-03-08",
+      "title": "2025년 리딩방 피해 통계 확정 — 6,853건, 6,581억원",
+      "summary": "경찰청이 2025년 연간 투자리딩방 사기 피해 최종 집계를 발표했습니다. 전년 대비 건수는 15% 감소했으나 건당 피해액은 증가했습니다.",
+      "category": "통계",
+      "source": "경찰청"
+    },
+    {
+      "date": "2026-02-25",
+      "title": "해외 거점 리딩방 조직 소탕 — 라오스에서 한국인 32명 송환",
+      "summary": "경찰청 국제범죄수사과가 라오스에 거점을 두고 투자 리딩방 사기를 운영한 조직원 32명을 국내 송환했습니다.",
+      "category": "적발",
+      "source": "경찰청"
+    },
+    {
+      "date": "2026-02-12",
+      "title": "사기죄 형량 상향법 시행 2개월 — 첫 중형 선고 사례",
+      "summary": "개정 형법 시행 이후 리딩방 사기 혐의로 징역 18년이 선고된 첫 사례가 나왔습니다. 피해액 120억원 규모.",
+      "category": "판결",
+      "source": "법원"
+    }
+  ]
+}
