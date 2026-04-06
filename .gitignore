@@ -40,6 +40,9 @@ yarn-error.log*
 *.png
 .playwright-mcp/
 
+# marketing (internal strategy)
+/marketing/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -45,9 +45,9 @@ function SectionDivider() {
 
 export default function Home() {
   return (
-    <main className="flex-1 overflow-x-hidden">
+    <>
       {/* ── Nav ── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 card-glass border-b border-white/40">
+      <nav className="fixed top-0 left-0 right-0 z-50 card-glass !rounded-none border-b border-white/40">
         <div className="mx-auto max-w-5xl flex items-center justify-between px-5 h-14">
           <span className="font-bold text-lg tracking-tight text-foreground">
             Clean Crypto
@@ -59,6 +59,8 @@ export default function Home() {
           </div>
         </div>
       </nav>
+
+    <main className="flex-1 overflow-x-hidden">
 
       {/* ── Hero ── */}
       <section className="relative pt-28 pb-20 md:pt-36 md:pb-28 px-5 grain">
@@ -406,5 +408,6 @@ export default function Home() {
         </div>
       </footer>
     </main>
+    </>
   );
 }

@@ -96,7 +96,7 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-section-bg">
       {/* nav */}
-      <nav className="sticky top-0 z-50 card-glass border-b border-white/40">
+      <nav className="sticky top-0 z-50 card-glass !rounded-none border-b border-white/40">
         <div className="mx-auto max-w-5xl flex items-center justify-between px-5 h-14">
           <a href="/" className="font-bold text-lg tracking-tight text-foreground">
             Clean Crypto

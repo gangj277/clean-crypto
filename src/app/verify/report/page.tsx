@@ -156,7 +156,7 @@ export default function ReportPage() {
   return (
     <div className="min-h-screen bg-section-bg">
       {/* header */}
-      <header className="sticky top-0 z-40 card-glass border-b border-white/40">
+      <header className="sticky top-0 z-40 card-glass !rounded-none border-b border-white/40">
         <div className="mx-auto max-w-2xl px-5 h-14 flex items-center justify-between">
           <a href="/" className="font-bold text-foreground tracking-tight">
             Clean Crypto
