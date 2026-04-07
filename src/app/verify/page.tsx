@@ -1,220 +1,354 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-/* ─────────── types ─────────── */
+/* ═══════════════════════════════════════════
+   Data definitions
+   ═══════════════════════════════════════════ */
 
-interface FormData {
-  platform: string;
-  duration: string;
-  memberCount: string;
-  discovery: string[];
-  fee: string;
-  tierStructure: string;
-  trialRefund: string;
-  lockIn: string;
-  referral: string;
-  signalType: string[];
-  leverage: string;
-  signalFrequency: string;
-  claimedWinRate: string;
-  winLossPosted: string;
-  trackRecord: string;
-  lossHandling: string;
-  fomoFrequency: string;
-  criticismTolerance: string;
-  operatorDisclosure: string;
-  crossSelling: string;
-  communityTone: string[];
-  membershipDuration: string;
-  actualResult: string;
-  biggestConcern: string;
-  trustRating: number;
+type QId = "q1" | "q2" | "q3" | "q4" | "q5" | "q6" | "q7" | "q8" | "q9";
+type Risk = "safe" | "caution" | "high" | "critical" | "check";
+type Answers = Partial<Record<QId, number>>;
+
+interface Option {
+  label: string;
+  risk: Risk;
+  note?: string;
+  redFlag?: boolean;
 }
 
-const INIT: FormData = {
-  platform: "", duration: "", memberCount: "", discovery: [],
-  fee: "", tierStructure: "", trialRefund: "", lockIn: "", referral: "",
-  signalType: [], leverage: "", signalFrequency: "", claimedWinRate: "", winLossPosted: "", trackRecord: "",
-  lossHandling: "", fomoFrequency: "", criticismTolerance: "", operatorDisclosure: "", crossSelling: "", communityTone: [],
-  membershipDuration: "", actualResult: "", biggestConcern: "", trustRating: 5,
-};
+interface QuestionDef {
+  id: QId;
+  stage: 1 | 2 | 3;
+  title: string;
+  description?: string;
+  tip?: string;
+  options: Option[];
+}
 
 const STAGES = [
-  { id: 1, label: "리딩 환경", desc: "기본 정보" },
-  { id: 2, label: "수수료 구조", desc: "경제 모델" },
-  { id: 3, label: "시그널 & 성과", desc: "주장 검증" },
-  { id: 4, label: "행동 패턴", desc: "운영 방식" },
-  { id: 5, label: "내 경험", desc: "종합 평가" },
+  { id: 1, label: "스캠 판별", desc: "이것만 걸려도 위험합니다" },
+  { id: 2, label: "성과 투명성", desc: "실력인지 연출인지 구분합니다" },
+  { id: 3, label: "운영 행동", desc: "장기적 위험 신호를 확인합니다" },
+] as const;
+
+const QUESTIONS: QuestionDef[] = [
+  {
+    id: "q1", stage: 1,
+    title: "대리매매 또는 자동매매 권유가 있나요?",
+    description: '"돈을 맡기면 대신 매매해준다", "자동매매 시스템에 넣으면 된다" 같은 제안이 있었나요?',
+    options: [
+      { label: "없음 — 매매는 본인이 직접", risk: "safe", note: "정상적인 리딩방의 기본" },
+      { label: "자동매매 봇 연동 권유", risk: "high", note: "카피트레이딩 사기 가능성 주의" },
+      { label: "대리매매 / 자금 위탁 권유", risk: "critical", note: "돈을 맡기는 순간 통제권 상실", redFlag: true },
+    ],
+  },
+  {
+    id: "q2", stage: 1,
+    title: "자금 요구 또는 출금 불가 유도가 있나요?",
+    description: '"출금하려면 추가 입금이 필요하다", "해당 거래소에만 넣어야 한다" 같은 요구가 있었나요?',
+    options: [
+      { label: "없음", risk: "safe" },
+      { label: "특정 거래소 가입 유도 (레퍼럴)", risk: "caution", note: "레퍼럴 수익 목적일 수 있음" },
+      { label: "자금 입금 요구 / 출금 조건 추가 입금", risk: "critical", note: "어떤 명목이든 100% 사기", redFlag: true },
+    ],
+  },
+  {
+    id: "q3", stage: 1,
+    title: "사용하는 거래소가 어디인가요?",
+    description: "운영자가 추천하거나 사용하는 거래소를 선택하세요.",
+    options: [
+      { label: "대형 거래소 (바이낸스, 바이빗, OKX 등)", risk: "safe", note: "검증된 거래소" },
+      { label: "중형 거래소 (빙엑스, 게이트 등)", risk: "caution", note: "대체로 괜찮으나 확인 필요" },
+      { label: "소형·비인가 거래소", risk: "critical", note: "레퍼럴 수수료 목적 + 안전성 리스크", redFlag: true },
+      { label: "잘 모름", risk: "check", note: "확인을 권장합니다" },
+    ],
+  },
+  {
+    id: "q4", stage: 2,
+    title: "수익인증 방식이 어떤 형태인가요?",
+    description: "운영자가 수익을 보여주는 방식을 선택하세요.",
+    tip: "\"사전에 공유했는가\" + \"공개 채널이었는가\" — 이 두 가지가 모두 Yes여야 진짜 실력 검증이 됩니다.",
+    options: [
+      { label: "사전 공유 → 결과 인증 (공개 채널)", risk: "safe", note: "유일하게 검증 가능한 방식" },
+      { label: "사전 공유 → 결과 인증 (비공개방)", risk: "caution", note: "조작·선택적 공개가 쉬움" },
+      { label: '사후 "했제" 인증 (결과만)', risk: "high", note: "누구나 할 수 있음 — 의미 없음" },
+      { label: '적중 과대 포장 반복', risk: "critical", note: "소수 적중을 과대 포장하는 전형적 패턴" },
+    ],
+  },
+  {
+    id: "q5", stage: 2,
+    title: "주장하는 승률이 현실적인가요?",
+    tip: "승률 자체보다 \"손익비\"가 중요합니다. 승률만 앞세우는 곳은 본질을 모르거나 일부러 숨기는 것일 수 있습니다.",
+    options: [
+      { label: "현실적 범위 (50~70%)", risk: "safe", note: "실전에서 충분히 가능" },
+      { label: "높은 편 (70~85%)", risk: "caution", note: "지속적이라면 검증 필요" },
+      { label: "비현실적 (85% 이상)", risk: "high", note: "장기 유지 거의 불가능" },
+      { label: "90% 이상 주장", risk: "critical", note: "실전에서 불가능한 수치" },
+    ],
+  },
+  {
+    id: "q6", stage: 2,
+    title: "손실이 난 콜에 대해 어떻게 대응하나요?",
+    options: [
+      { label: "승리·손실 모두 공개 + 복기", risk: "safe", note: "가장 이상적인 운영" },
+      { label: "둘 다 공개하지만 복기 없음", risk: "caution", note: "투명하긴 하나 개선 의지 부족" },
+      { label: "주로 승리만 공개", risk: "high", note: "선택적 공개 = 승률 조작 효과" },
+      { label: "손실 삭제 / 승리만 남김", risk: "critical", note: "전형적 사기 패턴", redFlag: true },
+    ],
+  },
+  {
+    id: "q7", stage: 3,
+    title: "과시형 콘텐츠가 있나요?",
+    description: "슈퍼카, 명품, 현금 다발 등 과시성 콘텐츠가 있나요?",
+    options: [
+      { label: "없음 — 분석·교육 중심", risk: "safe", note: "실력으로 보여주는 방" },
+      { label: "가끔 (라이프스타일 공유)", risk: "caution", note: "개인 취향일 수 있음" },
+      { label: "자주 — 과시가 더 많음", risk: "high", note: "이미지로 유입시키는 구조" },
+      { label: "메인 콘텐츠가 과시", risk: "critical", note: '"부자 이미지"를 판매하는 구조' },
+    ],
+  },
+  {
+    id: "q8", stage: 3,
+    title: "회원과 운영자 간 소통은 어떤가요?",
+    options: [
+      { label: "토론방 있음 (질문·의견 자유)", risk: "safe", note: "건강한 커뮤니티의 기본" },
+      { label: "토론방 있지만 활발하지 않음", risk: "caution", note: "형식적일 수 있음" },
+      { label: "일방향 채널 (공지만)", risk: "high", note: "비판 통로 없으면 은폐 쉬움" },
+      { label: "일방향 + 비판 시 밴/강퇴", risk: "critical", note: "통제형 운영 — 은폐 목적", redFlag: true },
+    ],
+  },
+  {
+    id: "q9", stage: 3,
+    title: "등급 업그레이드 유도가 있나요?",
+    description: "무료방 → 유료방 → VIP 같은 등급 구조가 있나요?",
+    options: [
+      { label: "단일 등급", risk: "safe", note: "투명한 구조" },
+      { label: "2단계 (무료 + 유료)", risk: "caution", note: "일반적인 운영 모델" },
+      { label: "VIP/프리미엄 별도", risk: "high", note: "추가 결제 압박 가능" },
+      { label: "3단계 이상 + 지속 유도", risk: "critical", note: "등급 판매 의존 구조" },
+    ],
+  },
 ];
 
-/* ─────────── primitives ─────────── */
+/* ═══════════════════════════════════════════
+   Stage SVG Icons
+   ═══════════════════════════════════════════ */
 
-function Chip({ label, selected, onClick }: { label: string; selected: boolean; onClick: () => void }) {
+function StageIcon({ stage, size = 16, color }: { stage: number; size?: number; color?: string }) {
+  const c = color ?? "#0d95a8";
+  if (stage === 1) return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <line x1="9" y1="9" x2="15" y2="15" /><line x1="15" y1="9" x2="9" y2="15" />
+    </svg>
+  );
+  if (stage === 2) return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21.21 15.89A10 10 0 118 2.83" /><path d="M22 12A10 10 0 0012 2v10z" />
+    </svg>
+  );
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   Analysis logic
+   ═══════════════════════════════════════════ */
+
+const RISK_LABEL: Record<Risk, string> = {
+  safe: "안전", caution: "주의", high: "위험", critical: "즉시 위험", check: "확인 필요",
+};
+const RISK_CLS: Record<Risk, string> = {
+  safe: "text-green bg-green-light",
+  caution: "text-amber bg-amber-light",
+  high: "text-red bg-red-light",
+  critical: "text-red bg-red-light",
+  check: "text-primary bg-primary-light",
+};
+
+interface Finding { label: string; risk: Risk; note?: string }
+interface StageAnalysis {
+  stage: number;
+  label: string;
+  pass: boolean;
+  score?: number;
+  findings: Finding[];
+  redFlagsTriggered: string[];
+}
+
+function getStageFindings(answers: Answers, stage: number): Finding[] {
+  return QUESTIONS
+    .filter((q) => q.stage === stage && answers[q.id] !== undefined)
+    .map((q) => {
+      const opt = q.options[answers[q.id]!];
+      return { label: `${q.title.replace(/\?|가 있나요|이 있나요|인가요|하나요/g, "").trim()}`, risk: opt.risk, note: opt.note };
+    });
+}
+
+function getRedFlags(answers: Answers): string[] {
+  const flags: string[] = [];
+  for (const q of QUESTIONS) {
+    const idx = answers[q.id];
+    if (idx !== undefined && q.options[idx].redFlag) flags.push(q.options[idx].label);
+  }
+  return flags;
+}
+
+function scoreStage(answers: Answers, stage: number): number {
+  const qs = QUESTIONS.filter((q) => q.stage === stage);
+  const weights = stage === 2 ? [40, 30, 30] : [30, 40, 30];
+  let total = 0;
+  qs.forEach((q, i) => {
+    const idx = answers[q.id];
+    if (idx === undefined) return;
+    const riskScore: Record<Risk, number> = { safe: 100, caution: 65, check: 50, high: 25, critical: 0 };
+    total += (riskScore[q.options[idx].risk] * weights[i]) / 100;
+  });
+  return Math.round(total);
+}
+
+function analyzeStage(answers: Answers, stage: number): StageAnalysis {
+  const stageInfo = STAGES[stage - 1];
+  const findings = getStageFindings(answers, stage);
+  const redFlags = getRedFlags(answers).filter((f) => {
+    const q = QUESTIONS.find((qq) => qq.options.some((o) => o.label === f && o.redFlag));
+    return q && q.stage === stage;
+  });
+  if (stage === 1) return { stage, label: stageInfo.label, pass: redFlags.length === 0, findings, redFlagsTriggered: redFlags };
+  return { stage, label: stageInfo.label, pass: true, score: scoreStage(answers, stage), findings, redFlagsTriggered: redFlags };
+}
+
+/* ═══════════════════════════════════════════
+   UI Primitives
+   ═══════════════════════════════════════════ */
+
+function RiskBadge({ risk }: { risk: Risk }) {
+  return (
+    <span className={`text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-md shrink-0 whitespace-nowrap ${RISK_CLS[risk]}`}>
+      {RISK_LABEL[risk]}
+    </span>
+  );
+}
+
+function OptionCard({ option, selected, onClick }: { option: Option; selected: boolean; onClick: () => void }) {
+  const borderCls = selected
+    ? option.risk === "safe" ? "border-green/25 bg-green-light/40"
+      : option.risk === "caution" || option.risk === "check" ? "border-amber/25 bg-amber-light/40"
+      : "border-red/25 bg-red-light/40"
+    : "border-card-border/80 bg-white hover:border-card-border hover:bg-section-bg/60 active:bg-section-bg";
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer active:scale-[0.97] ${
-        selected
-          ? "bg-primary-light text-primary-dark border border-primary/25 shadow-sm"
-          : "bg-muted-light text-muted border border-transparent hover:bg-slate-100"
-      }`}
+      className={`w-full text-left rounded-xl sm:rounded-2xl border transition-all duration-300 cursor-pointer active:scale-[0.985] overflow-hidden min-h-[56px] ${borderCls} ${selected ? "animate-answer-lock" : ""}`}
     >
-      {label}
+      <div className="flex">
+        {/* Risk color bar */}
+        <div
+          className="w-1 shrink-0 self-stretch rounded-l-xl sm:rounded-l-2xl"
+          style={{ backgroundColor: option.risk === "safe" ? "#0fae7b" : option.risk === "caution" || option.risk === "check" ? "#e8930c" : "#e5484d" }}
+        />
+        <div className="flex-1 p-3 sm:p-4 pl-3 sm:pl-4">
+          {/* Mobile: badge below label. Desktop: badge beside label */}
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 sm:gap-3">
+            <div className="flex-1 min-w-0">
+              <p className={`text-[13px] font-semibold leading-snug tracking-[-0.01em] ${selected ? "text-foreground" : "text-foreground/85"}`}>
+                {option.label}
+              </p>
+              {option.note && (
+                <p className="text-[11px] text-muted mt-0.5 leading-relaxed">{option.note}</p>
+              )}
+            </div>
+            <RiskBadge risk={option.risk} />
+          </div>
+          {option.redFlag && (
+            <div className="mt-2 pt-2 border-t border-red/10 flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="#e5484d" opacity="0.12" stroke="#e5484d" strokeWidth="1.5" />
+                <line x1="12" y1="9" x2="12" y2="13" stroke="#e5484d" strokeWidth="2" />
+                <circle cx="12" cy="16" r="0.5" fill="#e5484d" stroke="#e5484d" strokeWidth="1" />
+              </svg>
+              <span className="text-[10px] font-bold text-red tracking-wide uppercase">Critical Red Flag</span>
+            </div>
+          )}
+        </div>
+      </div>
     </button>
   );
 }
 
-function ChipGroup({ options, value, onChange, multi = false }: {
-  options: string[]; value: string | string[]; onChange: (v: string | string[]) => void; multi?: boolean;
+function AnsweredQuestionCompact({ question, selectedIndex, onClick }: {
+  question: QuestionDef; selectedIndex: number; onClick: () => void;
 }) {
-  const selected = Array.isArray(value) ? value : [value];
+  const opt = question.options[selectedIndex];
   return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((opt) => (
-        <Chip
-          key={opt}
-          label={opt}
-          selected={selected.includes(opt)}
-          onClick={() => {
-            if (multi) {
-              const arr = selected.includes(opt) ? selected.filter((v) => v !== opt) : [...selected, opt];
-              onChange(arr);
-            } else {
-              onChange(opt);
-            }
-          }}
-        />
-      ))}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-between p-3 bg-section-bg/80 rounded-xl cursor-pointer hover:bg-section-bg active:bg-muted-light transition-colors group border border-transparent hover:border-card-border/60 min-h-[44px]"
+    >
+      <span className="text-[12px] text-foreground/60 font-medium truncate mr-2 tracking-[-0.01em] flex-1 min-w-0">
+        {question.title.replace(/\?$/, "")}
+      </span>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <RiskBadge risk={opt.risk} />
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted/30 group-hover:text-muted/60 transition-colors hidden sm:block">
+          <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" />
+        </svg>
+      </div>
+    </button>
   );
 }
 
-function Q({ label, sub, children }: { label: string; sub?: string; children: React.ReactNode }) {
-  return (
-    <div className="mb-7">
-      <p className="text-sm font-semibold text-foreground mb-1">{label}</p>
-      {sub && <p className="text-xs text-muted mb-3">{sub}</p>}
-      {!sub && <div className="mb-3" />}
-      {children}
-    </div>
-  );
-}
+/* ── Stage Analysis Card ── */
 
-function Severity({ level }: { level: "양호" | "주의" | "위험" }) {
-  const cls = level === "양호" ? "text-green bg-green-light" : level === "주의" ? "text-amber bg-amber-light" : "text-red bg-red-light";
-  return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 ${cls}`}>{level}</span>;
-}
-
-/* ─────────── analysis generators ─────────── */
-
-interface Finding { label: string; level: "양호" | "주의" | "위험" }
-
-function getAnalysis1(data: FormData): { title: string; summary: string; findings: Finding[] } {
-  const findings: Finding[] = [];
-  if (data.platform === "텔레그램") findings.push({ label: "익명성 높은 플랫폼", level: "주의" });
-  if (data.platform === "카카오톡") findings.push({ label: "국내 규제 협조 플랫폼", level: "양호" });
-  if (["3개월 미만", "3~6개월"].includes(data.duration)) findings.push({ label: "운영 이력 부족", level: "위험" });
-  if (["1~2년", "2년 이상"].includes(data.duration)) findings.push({ label: "장기 운영 이력", level: "양호" });
-  if (data.memberCount === "2,000명 이상") findings.push({ label: "대규모 멤버 — 관리 한계 가능성", level: "주의" });
-  if (data.discovery.includes("SNS 광고") || data.discovery.includes("유튜브")) findings.push({ label: "유료 광고 유입 채널", level: "주의" });
-  if (data.discovery.includes("지인 추천")) findings.push({ label: "신뢰 기반 유입", level: "양호" });
-
-  const riskCount = findings.filter(f => f.level === "위험").length;
-  const cautionCount = findings.filter(f => f.level === "주의").length;
-  const summary = riskCount > 0 ? `위험 ${riskCount}건, 주의 ${cautionCount}건 탐지` : cautionCount > 0 ? `주의 ${cautionCount}건 탐지` : "특이사항 없음";
-
-  return { title: "환경 프로필", summary, findings };
-}
-
-function getAnalysis2(data: FormData): { title: string; summary: string; findings: Finding[]; revenue?: string } {
-  const findings: Finding[] = [];
-  if (["100~300만원", "300만원 이상"].includes(data.fee)) findings.push({ label: "고액 수수료 — 성과 검증 없이는 과도", level: "위험" });
-  if (data.trialRefund === "없음") findings.push({ label: "환불/체험 미보장", level: "위험" });
-  if (data.tierStructure === "VIP/프리미엄 별도") findings.push({ label: "급격한 등급 차이 — 업셀 유도 가능성", level: "주의" });
-  if (data.referral === "다단계 구조") findings.push({ label: "모집 중심 수익 구조 — 피라미드 의심", level: "위험" });
-  if (data.referral === "없음") findings.push({ label: "추천인 구조 없음", level: "양호" });
-  if (data.lockIn === "평생 이용권 판매") findings.push({ label: "평생 이용권 — 장기 락인", level: "주의" });
-  if (data.fee === "무료") findings.push({ label: "무료 — 수수료 리스크 없음", level: "양호" });
-
-  const feeMap: Record<string, number> = { "30만원 미만": 20, "30~100만원": 65, "100~300만원": 200, "300만원 이상": 400 };
-  const memberMap: Record<string, number> = { "50명 미만": 30, "50~200명": 120, "200~500명": 350, "500~2,000명": 1000, "2,000명 이상": 3000 };
-  const est = (feeMap[data.fee] || 0) * (memberMap[data.memberCount] || 0);
-  const revenue = est > 0 ? (est >= 10000 ? `${(est / 10000).toFixed(1)}억원` : `${est.toLocaleString()}만원`) : undefined;
-
-  const riskCount = findings.filter(f => f.level === "위험").length;
-  const summary = revenue && est > 5000 ? `추정 월 매출 ${revenue} — 비정상적 규모` : riskCount > 0 ? `구조적 위험 ${riskCount}건` : "구조 양호";
-
-  return { title: "수수료 구조", summary, findings, revenue: est > 5000 ? revenue : undefined };
-}
-
-function getAnalysis3(data: FormData): { title: string; summary: string; findings: Finding[] } {
-  const findings: Finding[] = [];
-  if (["80~90%", "90% 이상"].includes(data.claimedWinRate)) findings.push({ label: `승률 ${data.claimedWinRate} 주장 — 통계적으로 비현실적`, level: "위험" });
-  if (data.claimedWinRate === "70~80%") findings.push({ label: "승률 70~80% — 높은 수준, 검증 필요", level: "주의" });
-  if (data.claimedWinRate === "구체적 수치 미공개") findings.push({ label: "승률 미공개 — 오히려 현실적 신호", level: "양호" });
-  if (data.winLossPosted === "승리만 게시") findings.push({ label: "선택적 공개 — 가장 흔한 조작 기법", level: "위험" });
-  if (data.winLossPosted === "둘 다 공개") findings.push({ label: "승리/손실 모두 공개", level: "양호" });
-  if (data.trackRecord === "공개 기록 없음") findings.push({ label: "검증 가능한 트랙레코드 부재", level: "위험" });
-  if (data.leverage === "20배 이상") findings.push({ label: "고레버리지 추천 — 극고위험", level: "위험" });
-  if (data.signalFrequency === "15개 이상") findings.push({ label: "과도한 시그널 빈도 — 체리피킹 용이", level: "주의" });
-
-  const riskCount = findings.filter(f => f.level === "위험").length;
-  const summary = riskCount >= 2 ? `성과 주장에서 중대 위험 ${riskCount}건` : riskCount === 1 ? "성과 주장 검증 필요" : "성과 주장 양호";
-
-  return { title: "시그널 & 성과", summary, findings };
-}
-
-function getAnalysis4(data: FormData): { title: string; summary: string; findings: Finding[] } {
-  const findings: Finding[] = [];
-  if (data.lossHandling === "삭제") findings.push({ label: "손실 콜 삭제 → 투명성 심각 부재", level: "위험" });
-  if (data.lossHandling === "복기 및 리뷰") findings.push({ label: "손실 복기 수행 → 전문적 운영", level: "양호" });
-  if (data.lossHandling === "시장/팔로워 탓") findings.push({ label: "책임 전가 패턴", level: "위험" });
-  if (data.criticismTolerance === "비판자 밴") findings.push({ label: "비판 차단 → 통제 구조 의심", level: "위험" });
-  if (data.criticismTolerance === "자유 토론") findings.push({ label: "개방적 토론 문화", level: "양호" });
-  if (data.fomoFrequency === "주된 영업 방식") findings.push({ label: "FOMO 언어 상시 → 조작 전술", level: "위험" });
-  if (data.crossSelling === "그게 본업인 듯") findings.push({ label: "크로스셀링 중심 운영", level: "주의" });
-  if (data.communityTone.includes("맹신적")) findings.push({ label: "맹신적 분위기", level: "위험" });
-  if (data.communityTone.includes("분석적")) findings.push({ label: "분석적 토론 문화", level: "양호" });
-
-  const riskCount = findings.filter(f => f.level === "위험").length;
-  const summary = riskCount >= 2 ? `행동 패턴 중대 위험 ${riskCount}건` : riskCount === 1 ? "행동 패턴 주의 필요" : "행동 패턴 양호";
-
-  return { title: "행동 패턴", summary, findings };
-}
-
-/* ─────────── collapsible analysis card ─────────── */
-
-function CollapsedAnalysis({ title, summary, findings, defaultOpen = false, revenue }: {
-  title: string; summary: string; findings: Finding[]; defaultOpen?: boolean; revenue?: string;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const worstLevel = findings.some(f => f.level === "위험") ? "위험" : findings.some(f => f.level === "주의") ? "주의" : "양호";
+function StageAnalysisCard({ analysis }: { analysis: StageAnalysis }) {
+  const [open, setOpen] = useState(true);
+  const isFail = analysis.stage === 1 && !analysis.pass;
 
   return (
-    <div className="card-elevated !rounded-2xl overflow-hidden transition-all duration-300">
+    <div className={`card-elevated !rounded-xl sm:!rounded-2xl overflow-hidden ${isFail ? "!border-red/20" : ""}`}>
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between p-4 cursor-pointer hover:bg-muted-light/30 transition-colors"
+        className="w-full flex items-center justify-between p-3 sm:p-4 cursor-pointer hover:bg-section-bg/40 active:bg-section-bg/60 transition-colors min-h-[52px]"
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-7 h-7 rounded-lg bg-primary-light flex items-center justify-center shrink-0">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0d95a8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 12l2 2 4-4" />
-            </svg>
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+          <div className={`w-8 h-8 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ${isFail ? "bg-red-light" : "bg-primary-light"}`}>
+            {isFail ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e5484d" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <line x1="12" y1="9" x2="12" y2="13" /><circle cx="12" cy="16" r="0.5" fill="#e5484d" />
+              </svg>
+            ) : (
+              <StageIcon stage={analysis.stage} size={14} color="#0d95a8" />
+            )}
           </div>
-          <div className="text-left min-w-0">
-            <p className="text-sm font-semibold text-foreground">{title}</p>
-            <p className="text-xs text-muted truncate">{summary}</p>
+          <div className="text-left min-w-0 flex-1">
+            <p className="text-[12px] sm:text-[13px] font-bold text-foreground tracking-[-0.02em] truncate">
+              Stage {analysis.stage} — {analysis.label}
+            </p>
+            <p className="text-[10px] sm:text-[11px] text-muted truncate">
+              {analysis.stage === 1
+                ? (analysis.pass ? "위험 신호 없음" : `즉시 위험 ${analysis.redFlagsTriggered.length}건 감지`)
+                : `신뢰도 ${analysis.score}/100`}
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Severity level={worstLevel} />
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 ml-2">
+          {analysis.stage === 1 ? (
+            <RiskBadge risk={analysis.pass ? "safe" : "critical"} />
+          ) : (
+            <RiskBadge risk={(analysis.score ?? 0) >= 70 ? "safe" : (analysis.score ?? 0) >= 40 ? "caution" : "high"} />
+          )}
           <svg
-            width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8892a5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className={`text-muted/40 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
           >
             <path d="M6 9l6 6 6-6" />
           </svg>
@@ -222,69 +356,93 @@ function CollapsedAnalysis({ title, summary, findings, defaultOpen = false, reve
       </button>
 
       {open && (
-        <div className="px-4 pb-4 animate-fade-in">
-          {revenue && (
-            <div className="bg-section-bg rounded-xl p-3 mb-2.5">
-              <p className="text-[11px] text-muted">추정 월 매출</p>
-              <p className="text-base font-extrabold text-foreground stat-number">{revenue}</p>
-              <p className="text-[10px] text-amber font-medium mt-0.5">개인 시그널 그룹으로 비정상적 규모</p>
+        <div className="px-3 sm:px-4 pb-3 sm:pb-4 animate-fade-in space-y-1.5 sm:space-y-2">
+          {analysis.redFlagsTriggered.length > 0 && (
+            <div className="bg-red-light/80 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-red/10">
+              <div className="flex items-center gap-2 mb-2">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e5484d" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <line x1="12" y1="9" x2="12" y2="13" /><circle cx="12" cy="16" r="0.5" fill="#e5484d" />
+                </svg>
+                <p className="text-[10px] font-bold text-red tracking-wide uppercase">Red Flags Detected</p>
+              </div>
+              {analysis.redFlagsTriggered.map((f) => (
+                <div key={f} className="flex items-start gap-2 mb-1.5 last:mb-0">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e5484d" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                  <span className="text-[11px] text-red font-medium leading-snug">{f}</span>
+                </div>
+              ))}
             </div>
           )}
-          <div className="space-y-1.5">
-            {findings.map((f, i) => (
-              <div key={i} className="flex items-center justify-between py-1.5 px-2.5 bg-muted-light/40 rounded-lg">
-                <span className="text-xs text-foreground">{f.label}</span>
-                <Severity level={f.level} />
+
+          {analysis.findings.map((f, i) => (
+            <div key={i} className="flex items-center justify-between py-2 px-3 bg-section-bg/60 rounded-lg sm:rounded-xl gap-2">
+              <span className="text-[11px] text-foreground/80 font-medium tracking-[-0.01em] truncate flex-1 min-w-0">{f.label}</span>
+              <RiskBadge risk={f.risk} />
+            </div>
+          ))}
+
+          {analysis.score !== undefined && (
+            <div className="pt-2 px-0.5">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] text-muted font-medium tracking-wide uppercase">Trust Score</span>
+                <span className={`text-sm font-extrabold stat-number ${
+                  analysis.score >= 70 ? "text-green" : analysis.score >= 40 ? "text-amber" : "text-red"
+                }`}>
+                  {analysis.score}
+                </span>
               </div>
-            ))}
-          </div>
+              <div className="h-1.5 bg-card-border/60 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-1000"
+                  style={{
+                    width: `${analysis.score}%`,
+                    backgroundColor: analysis.score >= 70 ? "#0fae7b" : analysis.score >= 40 ? "#e8930c" : "#e5484d",
+                    transitionTimingFunction: "cubic-bezier(0.16,1,0.3,1)",
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-/* ─────────── analyzing indicator ─────────── */
+/* ── Analyzing indicator ── */
 
-function AnalyzingIndicator({ stageLabel }: { stageLabel: string }) {
+function AnalyzingIndicator({ stage, stageLabel, questions }: { stage: number; stageLabel: string; questions: string[] }) {
   return (
-    <div className="flex items-center gap-3 py-6 justify-center animate-fade-in">
-      <div className="relative w-8 h-8">
-        <svg viewBox="0 0 32 32" className="w-full h-full animate-[spin_1.5s_linear_infinite]">
-          <circle cx="16" cy="16" r="12" fill="none" stroke="#e8ecf2" strokeWidth="3" />
-          <circle cx="16" cy="16" r="12" fill="none" stroke="#1fb8cd" strokeWidth="3" strokeDasharray="75.4" strokeDashoffset="56" strokeLinecap="round" />
-        </svg>
-      </div>
-      <p className="text-sm text-muted font-medium">{stageLabel} 분석 중...</p>
-    </div>
-  );
-}
-
-/* ─────────── final loading ─────────── */
-
-function FinalLoading() {
-  return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-5">
-      <div className="relative w-24 h-24 mb-8">
-        <svg viewBox="0 0 96 96" className="w-full h-full animate-[spin_3s_linear_infinite]">
-          <circle cx="48" cy="48" r="40" fill="none" stroke="#e8ecf2" strokeWidth="3" />
-          <circle cx="48" cy="48" r="40" fill="none" stroke="#1fb8cd" strokeWidth="3" strokeDasharray="251.3" strokeDashoffset="188" strokeLinecap="round" />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1fb8cd" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="10" opacity="0.3" />
+    <div className="py-8 sm:py-10 animate-fade-in">
+      <div className="flex flex-col items-center mb-6 sm:mb-8">
+        <div className="relative w-12 h-12 sm:w-14 sm:h-14 mb-3 sm:mb-4">
+          <div className="absolute inset-0 rounded-xl sm:rounded-2xl bg-primary/8 animate-pulse-soft" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <StageIcon stage={stage} size={20} color="#1fb8cd" />
+          </div>
+          <svg viewBox="0 0 56 56" className="absolute inset-0 w-full h-full animate-[spin_3s_linear_infinite]">
+            <circle cx="28" cy="4" r="2" fill="#1fb8cd" opacity="0.6" />
           </svg>
         </div>
+        <p className="text-[13px] sm:text-sm font-semibold text-foreground tracking-[-0.02em]">{stageLabel} 분석 중</p>
+        <div className="flex items-center gap-1 mt-1.5">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="w-1 h-1 rounded-full bg-primary" style={{ animation: `pulse-soft 1.4s ease-in-out ${i * 0.2}s infinite` }} />
+          ))}
+        </div>
       </div>
-      <h2 className="text-xl font-bold text-foreground mb-2">종합 분석 진행 중</h2>
-      <p className="text-muted text-sm mb-6">4개 영역을 교차 분석하고 있습니다</p>
-      <div className="w-full max-w-xs space-y-3">
-        {["구조 분석", "성과 검증", "행동 패턴 대조", "종합 리포트 생성"].map((s, i) => (
-          <div key={s} className="flex items-center gap-3 animate-fade-in" style={{ animationDelay: `${i * 600}ms` }}>
-            <div className="w-5 h-5 rounded-full bg-primary-light flex items-center justify-center shrink-0">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0d95a8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12l2 2 4-4" /></svg>
+      <div className="max-w-xs mx-auto space-y-2">
+        {questions.map((q, i) => (
+          <div key={q} className="flex items-center gap-2.5 animate-fade-in" style={{ animationDelay: `${i * 400}ms` }}>
+            <div className="w-5 h-5 rounded-md bg-primary-light flex items-center justify-center shrink-0">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0d95a8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 12l2 2 4-4" />
+              </svg>
             </div>
-            <span className="text-sm text-foreground">{s}</span>
+            <span className="text-[11px] text-muted tracking-[-0.01em] leading-snug">{q}</span>
           </div>
         ))}
       </div>
@@ -292,253 +450,347 @@ function FinalLoading() {
   );
 }
 
-/* ─────────── main ─────────── */
+/* ── Final loading ── */
+
+function FinalLoading() {
+  return (
+    <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-5">
+      <div className="relative w-24 h-24 sm:w-28 sm:h-28 mb-8 sm:mb-10">
+        <svg viewBox="0 0 112 112" className="w-full h-full">
+          <circle cx="56" cy="56" r="50" fill="none" stroke="#e8ecf2" strokeWidth="1.5" />
+          <circle cx="56" cy="56" r="40" fill="none" stroke="#e8ecf2" strokeWidth="1" opacity="0.5" />
+          <circle cx="56" cy="56" r="50" fill="none" stroke="#1fb8cd" strokeWidth="2" strokeDasharray="314" strokeDashoffset="235" strokeLinecap="round" className="animate-[spin_3s_linear_infinite] origin-center" />
+          <circle cx="56" cy="56" r="40" fill="none" stroke="#0d95a8" strokeWidth="1.5" strokeDasharray="251" strokeDashoffset="188" strokeLinecap="round" className="animate-[spin_4s_linear_infinite_reverse] origin-center" />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1fb8cd" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
+          </svg>
+        </div>
+      </div>
+      <h2 className="text-lg sm:text-xl font-bold text-foreground mb-2 tracking-[-0.03em]">종합 분석 진행 중</h2>
+      <p className="text-muted text-[13px] sm:text-sm mb-6 sm:mb-8 tracking-[-0.01em]">3개 영역을 교차 분석하고 있습니다</p>
+      <div className="w-full max-w-xs space-y-2.5 sm:space-y-3">
+        {[
+          { label: "스캠 판별 완료", icon: 1 },
+          { label: "성과 투명성 분석", icon: 2 },
+          { label: "운영 행동 대조", icon: 3 },
+          { label: "종합 리포트 생성", icon: 0 },
+        ].map((s, i) => (
+          <div key={s.label} className="flex items-center gap-3 animate-fade-in" style={{ animationDelay: `${i * 600}ms` }}>
+            <div className="w-6 h-6 rounded-lg bg-primary-light flex items-center justify-center shrink-0">
+              {s.icon > 0 ? <StageIcon stage={s.icon} size={12} color="#0d95a8" /> : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0d95a8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" />
+                </svg>
+              )}
+            </div>
+            <span className="text-[13px] text-foreground font-medium tracking-[-0.01em]">{s.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
+   Main Component
+   ═══════════════════════════════════════════ */
+
+type Phase = "questioning" | "stage-analysis" | "stage-result" | "final-loading";
 
 export default function VerifyPage() {
   const router = useRouter();
-  const [stage, setStage] = useState(1);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [data, setData] = useState<FormData>(INIT);
+  const [answers, setAnswers] = useState<Answers>({});
+  const [currentQIdx, setCurrentQIdx] = useState(0);
+  const [phase, setPhase] = useState<Phase>("questioning");
+  const [completedAnalyses, setCompletedAnalyses] = useState<StageAnalysis[]>([]);
+  const activeRef = useRef<HTMLDivElement>(null);
 
-  const set = useCallback(
-    <K extends keyof FormData>(key: K, value: FormData[K]) =>
-      setData((prev) => ({ ...prev, [key]: value })),
-    []
-  );
+  const currentQ = QUESTIONS[currentQIdx];
+  const currentStage = currentQ?.stage ?? 3;
+  const stageQs = QUESTIONS.filter((q) => q.stage === currentStage);
+  const stageStartIdx = QUESTIONS.findIndex((q) => q.stage === currentStage);
+  const answeredQsInStage = stageQs.filter((q) => answers[q.id] !== undefined && QUESTIONS.indexOf(q) < currentQIdx);
+  const totalAnswered = Object.keys(answers).length;
 
-  function handleNext() {
-    if (stage < 5) {
-      setAnalyzing(true);
-      setTimeout(() => {
-        setAnalyzing(false);
-        setStage((s) => s + 1);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }, 1500);
-    } else {
-      setIsLoading(true);
-      setTimeout(() => router.push("/verify/report"), 3200);
+  useEffect(() => {
+    if (phase === "questioning" && activeRef.current) {
+      const timer = setTimeout(() => {
+        activeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 120);
+      return () => clearTimeout(timer);
     }
-  }
+  }, [currentQIdx, phase]);
 
-  /* completed analyses */
-  const completedAnalyses: { analysis: ReturnType<typeof getAnalysis1>; revenue?: string }[] = [];
-  if (stage > 1) completedAnalyses.push({ analysis: getAnalysis1(data) });
-  if (stage > 2) {
-    const a2 = getAnalysis2(data);
-    completedAnalyses.push({ analysis: a2, revenue: a2.revenue });
-  }
-  if (stage > 3) completedAnalyses.push({ analysis: getAnalysis3(data) });
-  if (stage > 4) completedAnalyses.push({ analysis: getAnalysis4(data) });
+  const handleAnswer = useCallback((optionIdx: number) => {
+    const q = QUESTIONS[currentQIdx];
+    setAnswers((prev) => ({ ...prev, [q.id]: optionIdx }));
 
-  if (isLoading) return <FinalLoading />;
+    setTimeout(() => {
+      const isLastInStage = currentQIdx === stageStartIdx + stageQs.length - 1;
+      if (isLastInStage) {
+        setPhase("stage-analysis");
+        setTimeout(() => {
+          const analysis = analyzeStage({ ...answers, [q.id]: optionIdx } as Answers, currentStage);
+          setCompletedAnalyses((prev) => [...prev, analysis]);
+          setPhase("stage-result");
+        }, 1800);
+      } else {
+        setCurrentQIdx((i) => i + 1);
+      }
+    }, 450);
+  }, [currentQIdx, stageStartIdx, stageQs.length, answers, currentStage]);
+
+  const handleReAnswer = useCallback((qIdx: number) => {
+    const stage = QUESTIONS[qIdx].stage;
+    const toRemove = QUESTIONS.filter((q, i) => q.stage === stage && i >= qIdx).map((q) => q.id);
+    setAnswers((prev) => {
+      const next = { ...prev };
+      for (const id of toRemove) delete next[id];
+      return next;
+    });
+    setCurrentQIdx(qIdx);
+  }, []);
+
+  const handleContinueToNextStage = useCallback(async () => {
+    if (currentStage >= 3) {
+      setPhase("final-loading");
+
+      // Build full answer payload (merge client-side answers into q1-q9 shape)
+      const payload: Record<string, number> = {};
+      for (const q of QUESTIONS) {
+        const val = answers[q.id];
+        if (val !== undefined) payload[q.id] = val;
+      }
+
+      try {
+        // Call analysis API
+        const resp = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!resp.ok) throw new Error(`API ${resp.status}`);
+        const report = await resp.json();
+        sessionStorage.setItem("verify-report", JSON.stringify(report));
+      } catch (err) {
+        console.error("Analysis API failed:", err);
+        // Fallback: store client-side data so report page can still render
+        sessionStorage.setItem("verify-answers", JSON.stringify(payload));
+        sessionStorage.setItem("verify-analysis", JSON.stringify({ stages: completedAnalyses, redFlags: getRedFlags(answers) }));
+      }
+
+      router.push("/verify/report");
+    } else {
+      setCurrentQIdx(stageStartIdx + stageQs.length);
+      setPhase("questioning");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [currentStage, stageStartIdx, stageQs.length, answers, completedAnalyses, router]);
+
+  if (phase === "final-loading") return <FinalLoading />;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* header */}
+    <div className="min-h-screen min-h-[100dvh] bg-background">
+      {/* Header */}
       <header className="sticky top-0 z-40 card-glass !rounded-none border-b border-white/40">
-        <div className="mx-auto max-w-2xl px-5 h-14 flex items-center justify-between">
-          <a href="/" className="font-bold text-foreground tracking-tight">Clean Crypto</a>
-          <span className="text-xs text-muted font-medium">{stage}/5 단계</span>
+        <div className="mx-auto max-w-2xl px-4 sm:px-5 h-12 sm:h-14 flex items-center justify-between">
+          <a href="/" className="font-bold text-foreground tracking-[-0.03em] text-[15px]">Clean Crypto</a>
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="flex items-center gap-1">
+              {[1, 2, 3].map((s) => {
+                const done = completedAnalyses.some((a) => a.stage === s);
+                const active = s === currentStage && !done;
+                return (
+                  <div key={s} className={`w-2 h-2 rounded-full transition-all duration-500 ${done ? "bg-green" : active ? "bg-primary" : "bg-card-border"}`} />
+                );
+              })}
+            </div>
+            <span className="text-[11px] text-muted font-medium tabular-nums">{totalAnswered}/9</span>
+          </div>
         </div>
       </header>
 
-      {/* progress */}
-      <div className="mx-auto max-w-2xl px-5 pt-5 pb-2">
-        <div className="flex gap-1.5">
-          {STAGES.map((s) => (
-            <div key={s.id} className="flex-1 flex flex-col items-center gap-1.5">
-              <div className="w-full h-1 rounded-full overflow-hidden bg-card-border">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    s.id < stage ? "bg-primary w-full" : s.id === stage ? "bg-primary/50 w-1/2" : "w-0"
-                  }`}
-                />
+      {/* Progress bar */}
+      <div className="mx-auto max-w-2xl px-4 sm:px-5 pt-4 sm:pt-5 pb-1 sm:pb-2">
+        <div className="flex gap-1.5 sm:gap-2">
+          {STAGES.map((s) => {
+            const stageComplete = completedAnalyses.some((a) => a.stage === s.id);
+            const isActive = s.id === currentStage;
+            const stageQCount = QUESTIONS.filter((q) => q.stage === s.id).length;
+            const stageAnswered = QUESTIONS.filter((q) => q.stage === s.id && answers[q.id] !== undefined).length;
+            const pct = stageComplete ? 100 : isActive ? (stageAnswered / stageQCount) * 100 : 0;
+
+            return (
+              <div key={s.id} className="flex-1 flex flex-col gap-1.5 sm:gap-2">
+                <div className="w-full h-1 rounded-full overflow-hidden bg-card-border/60">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${pct}%`,
+                      backgroundColor: stageComplete ? "#0fae7b" : "#1fb8cd",
+                      transitionTimingFunction: "cubic-bezier(0.16,1,0.3,1)",
+                    }}
+                  />
+                </div>
+                <div className={`flex items-center gap-1 sm:gap-1.5 ${
+                  stageComplete ? "text-green" : isActive ? "text-primary-dark" : "text-muted/30"
+                }`}>
+                  <StageIcon stage={s.id} size={10} color={stageComplete ? "#0fae7b" : isActive ? "#0d95a8" : "#c8cdd6"} />
+                  <span className="text-[9px] sm:text-[10px] font-semibold tracking-[-0.01em]">{s.label}</span>
+                </div>
               </div>
-              <span className={`text-[10px] font-medium hidden md:block ${s.id <= stage ? "text-primary-dark" : "text-muted/50"}`}>
-                {s.label}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* content */}
-      <div className="mx-auto max-w-2xl px-5 py-6">
-        {/* stacked completed analyses */}
+      {/* Content */}
+      <div className="mx-auto max-w-2xl px-4 sm:px-5 py-4 sm:py-6">
+        {/* Completed stages */}
         {completedAnalyses.length > 0 && (
-          <div className="space-y-2 mb-6">
-            {completedAnalyses.map(({ analysis, revenue }, i) => (
-              <CollapsedAnalysis
-                key={i}
-                title={analysis.title}
-                summary={analysis.summary}
-                findings={analysis.findings}
-                revenue={revenue}
-              />
+          <div className="space-y-2 sm:space-y-2.5 mb-5 sm:mb-6">
+            {completedAnalyses.map((a) => (
+              <StageAnalysisCard key={a.stage} analysis={a} />
             ))}
           </div>
         )}
 
-        {/* analyzing indicator */}
-        {analyzing && <AnalyzingIndicator stageLabel={STAGES[stage - 1].label} />}
+        {/* Analyzing */}
+        {phase === "stage-analysis" && (
+          <AnalyzingIndicator
+            stage={currentStage}
+            stageLabel={STAGES[currentStage - 1].label}
+            questions={stageQs.map((q) => q.title.replace(/\?$/, ""))}
+          />
+        )}
 
-        {/* current stage form */}
-        {!analyzing && (
-          <div className="animate-fade-in">
-            <div className="mb-8">
-              <span className="text-xs font-bold text-primary tracking-widest">
-                STAGE {String(stage).padStart(2, "0")}
-              </span>
-              <h1 className="text-2xl font-bold text-foreground mt-1">{STAGES[stage - 1].label}</h1>
-              <p className="text-sm text-muted mt-1">
-                {stage === 1 && "어떤 환경에서 리딩을 받고 계신가요?"}
-                {stage === 2 && "돈은 어떻게 흘러가고 있나요?"}
-                {stage === 3 && "무엇을 제공한다고 주장하나요?"}
-                {stage === 4 && "실제로 어떻게 행동하나요?"}
-                {stage === 5 && "당신의 경험을 알려주세요"}
-              </p>
-            </div>
-
-            {/* ── stage 1 ── */}
-            {stage === 1 && (
-              <>
-                <Q label="운영 플랫폼" sub="리딩이 이루어지는 주요 채널을 선택하세요">
-                  <ChipGroup options={["텔레그램", "카카오톡", "디스코드", "기타"]} value={data.platform} onChange={(v) => set("platform", v as string)} />
-                </Q>
-                <Q label="운영 기간" sub="대략적으로 얼마나 운영되었나요?">
-                  <ChipGroup options={["3개월 미만", "3~6개월", "6~12개월", "1~2년", "2년 이상"]} value={data.duration} onChange={(v) => set("duration", v as string)} />
-                </Q>
-                <Q label="대략적 멤버 수">
-                  <ChipGroup options={["50명 미만", "50~200명", "200~500명", "500~2,000명", "2,000명 이상"]} value={data.memberCount} onChange={(v) => set("memberCount", v as string)} />
-                </Q>
-                <Q label="어떻게 알게 되셨나요?" sub="복수 선택 가능">
-                  <ChipGroup options={["지인 추천", "SNS 광고", "유튜브", "인플루언서", "검색", "기타"]} value={data.discovery} onChange={(v) => set("discovery", v as string[])} multi />
-                </Q>
-              </>
-            )}
-
-            {/* ── stage 2 ── */}
-            {stage === 2 && (
-              <>
-                <Q label="월 수수료" sub="대략적인 월간 비용을 선택하세요">
-                  <ChipGroup options={["무료", "30만원 미만", "30~100만원", "100~300만원", "300만원 이상"]} value={data.fee} onChange={(v) => set("fee", v as string)} />
-                </Q>
-                <Q label="등급 구조" sub="무료방/유료방/VIP 등 등급이 나뉘어 있나요?">
-                  <ChipGroup options={["단일 등급", "2~3단계", "VIP/프리미엄 별도", "없음(무료)"]} value={data.tierStructure} onChange={(v) => set("tierStructure", v as string)} />
-                </Q>
-                <Q label="무료 체험 또는 환불 보장">
-                  <ChipGroup options={["있음", "조건부", "없음"]} value={data.trialRefund} onChange={(v) => set("trialRefund", v as string)} />
-                </Q>
-                <Q label="장기 결제 유도" sub="장기 결제 할인이나 평생 이용권을 판매하나요?">
-                  <ChipGroup options={["없음", "3개월 할인", "6개월 할인", "평생 이용권 판매"]} value={data.lockIn} onChange={(v) => set("lockIn", v as string)} />
-                </Q>
-                <Q label="추천인 리워드" sub="다른 사람을 초대하면 보상이 있나요?">
-                  <ChipGroup options={["없음", "소액 할인", "의미 있는 보상", "다단계 구조"]} value={data.referral} onChange={(v) => set("referral", v as string)} />
-                </Q>
-              </>
-            )}
-
-            {/* ── stage 3 ── */}
-            {stage === 3 && (
-              <>
-                <Q label="시그널 유형" sub="복수 선택 가능">
-                  <ChipGroup options={["현물 매매", "선물(레버리지)", "디파이", "알트코인 추천", "매크로 분석"]} value={data.signalType} onChange={(v) => set("signalType", v as string[])} multi />
-                </Q>
-                {data.signalType.includes("선물(레버리지)") && (
-                  <Q label="추천 레버리지 수준">
-                    <ChipGroup options={["2~5배", "5~10배", "10~20배", "20배 이상"]} value={data.leverage} onChange={(v) => set("leverage", v as string)} />
-                  </Q>
-                )}
-                <Q label="주간 시그널 빈도">
-                  <ChipGroup options={["1~3개", "3~7개", "7~15개", "15개 이상"]} value={data.signalFrequency} onChange={(v) => set("signalFrequency", v as string)} />
-                </Q>
-                <Q label="주장하는 승률">
-                  <ChipGroup options={["구체적 수치 미공개", "60~70%", "70~80%", "80~90%", "90% 이상"]} value={data.claimedWinRate} onChange={(v) => set("claimedWinRate", v as string)} />
-                </Q>
-                <Q label="승리/손실 모두 공개하나요?">
-                  <ChipGroup options={["둘 다 공개", "주로 승리만", "승리만 게시", "모름"]} value={data.winLossPosted} onChange={(v) => set("winLossPosted", v as string)} />
-                </Q>
-                <Q label="과거 성과 데이터 존재 여부">
-                  <ChipGroup options={["공개 기록 있음", "회원에게만 공개", "구두로만 주장", "공개 기록 없음"]} value={data.trackRecord} onChange={(v) => set("trackRecord", v as string)} />
-                </Q>
-              </>
-            )}
-
-            {/* ── stage 4 ── */}
-            {stage === 4 && (
-              <>
-                <Q label="손실 발생 시 운영자 대응" sub="손실이 난 콜에 대해 어떻게 반응하나요?">
-                  <ChipGroup options={["복기 및 리뷰", "간단히 언급", "무시", "삭제", "시장/팔로워 탓"]} value={data.lossHandling} onChange={(v) => set("lossHandling", v as string)} />
-                </Q>
-                <Q label="FOMO/긴급성 언어 빈도" sub="'지금 안 들어오면 손해', '마감 임박' 등">
-                  <ChipGroup options={["없음", "가끔", "자주", "주된 영업 방식"]} value={data.fomoFrequency} onChange={(v) => set("fomoFrequency", v as string)} />
-                </Q>
-                <Q label="비판/의문 제기 허용 여부">
-                  <ChipGroup options={["자유 토론", "적당한 중재", "비판 비권장", "비판자 밴"]} value={data.criticismTolerance} onChange={(v) => set("criticismTolerance", v as string)} />
-                </Q>
-                <Q label="운영자 본인 매매 포지션 공개">
-                  <ChipGroup options={["증거와 함께 공개", "주장만", "비공개", "모름"]} value={data.operatorDisclosure} onChange={(v) => set("operatorDisclosure", v as string)} />
-                </Q>
-                <Q label="다른 상품/방 홍보 여부">
-                  <ChipGroup options={["없음", "가끔", "빈번", "그게 본업인 듯"]} value={data.crossSelling} onChange={(v) => set("crossSelling", v as string)} />
-                </Q>
-                <Q label="커뮤니티 전반 분위기" sub="복수 선택 가능">
-                  <ChipGroup options={["분석적", "교육적", "하이프 중심", "공포 기반", "맹신적", "서포티브"]} value={data.communityTone} onChange={(v) => set("communityTone", v as string[])} multi />
-                </Q>
-              </>
-            )}
-
-            {/* ── stage 5 ── */}
-            {stage === 5 && (
-              <>
-                <Q label="이용 기간">
-                  <ChipGroup options={["가입 고려 중", "1개월 미만", "1~3개월", "3~6개월", "6개월 이상"]} value={data.membershipDuration} onChange={(v) => set("membershipDuration", v as string)} />
-                </Q>
-                <Q label="시그널을 따라한 결과는?">
-                  <ChipGroup options={["큰 수익", "소폭 수익", "보합", "소폭 손실", "큰 손실", "아직 안 따라함"]} value={data.actualResult} onChange={(v) => set("actualResult", v as string)} />
-                </Q>
-                <Q label="가장 큰 우려사항" sub="자유롭게 적어주세요 (필수)">
-                  <textarea
-                    value={data.biggestConcern}
-                    onChange={(e) => set("biggestConcern", e.target.value)}
-                    placeholder="예: 수익 인증은 많은데 정작 내가 따라하면 손해가 나서 의심이 됩니다..."
-                    className="w-full min-h-[100px] px-4 py-3 rounded-xl border border-card-border bg-white text-sm text-foreground placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all resize-none"
-                  />
-                </Q>
-                <Q label="분석 전 신뢰도 자가 평가" sub="현재 이 리딩 환경을 얼마나 신뢰하시나요?">
-                  <div className="space-y-3">
-                    <input
-                      type="range" min={1} max={10} value={data.trustRating}
-                      onChange={(e) => set("trustRating", Number(e.target.value))}
-                      className="w-full accent-primary"
-                    />
-                    <div className="flex justify-between text-xs text-muted">
-                      <span>1 — 전혀 신뢰 안 함</span>
-                      <span className="text-lg font-extrabold text-primary stat-number">{data.trustRating}</span>
-                      <span>10 — 완전 신뢰</span>
-                    </div>
-                  </div>
-                </Q>
-              </>
-            )}
-
-            {/* next button */}
-            <div className="pt-4 pb-8">
-              <button
-                onClick={handleNext}
-                className="group w-full py-4 rounded-2xl bg-primary text-white font-semibold text-base flex items-center justify-center gap-2 hover:bg-primary-dark transition-all shadow-lg shadow-primary/15 hover:shadow-xl hover:shadow-primary/25 cursor-pointer active:scale-[0.98]"
-              >
-                {stage < 5 ? (
-                  <>
-                    다음 단계로
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:translate-x-1">
-                      <path d="M5 12h14M12 5l7 7-7 7" />
+        {/* Stage result */}
+        {phase === "stage-result" && (
+          <div className="animate-slide-in pb-safe">
+            {completedAnalyses.at(-1)?.stage === 1 && !completedAnalyses.at(-1)?.pass && (
+              <div className="bg-red-light/50 border border-red/15 rounded-xl sm:rounded-2xl p-4 sm:p-5 mb-4 sm:mb-5">
+                <div className="flex items-start sm:items-center gap-3 mb-2">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-red-light flex items-center justify-center shrink-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e5484d" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      <line x1="12" y1="9" x2="12" y2="13" /><circle cx="12" cy="16" r="0.5" fill="#e5484d" />
                     </svg>
-                  </>
-                ) : "종합 분석 시작"}
-              </button>
+                  </div>
+                  <div>
+                    <p className="text-[13px] sm:text-sm font-bold text-red tracking-[-0.02em]">즉시 위험이 감지되었습니다</p>
+                    <p className="text-[11px] text-red/70 mt-0.5 leading-relaxed">
+                      이 환경에서의 투자를 즉시 재고하시길 강력히 권고합니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={handleContinueToNextStage}
+              className="group w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl bg-primary text-white font-semibold text-[14px] flex items-center justify-center gap-2 hover:bg-primary-dark transition-all shadow-lg shadow-primary/12 cursor-pointer active:scale-[0.98] tracking-[-0.02em] min-h-[48px]"
+            >
+              {currentStage >= 3 ? (
+                <>
+                  종합 분석 시작
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6" />
+                  </svg>
+                </>
+              ) : (
+                <>
+                  다음: {(STAGES as readonly {label: string}[])[currentStage]?.label}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-hover:translate-x-0.5">
+                    <path d="M5 12h14M12 5l7 7-7 7" />
+                  </svg>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Question flow */}
+        {phase === "questioning" && (
+          <div className="animate-fade-in">
+            {/* Stage header */}
+            <div className="mb-5 sm:mb-7">
+              <div className="flex items-center gap-2 sm:gap-2.5 mb-1">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-primary-light/80 flex items-center justify-center">
+                  <StageIcon stage={currentStage} size={12} color="#0d95a8" />
+                </div>
+                <span className="text-[10px] sm:text-[11px] font-bold text-primary-dark tracking-widest uppercase">
+                  Stage {String(currentStage).padStart(2, "0")}
+                </span>
+              </div>
+              <h1 className="text-base sm:text-lg font-bold text-foreground tracking-[-0.03em] mt-1.5 sm:mt-2">
+                {STAGES[currentStage - 1].label}
+              </h1>
+              <p className="text-[12px] sm:text-[13px] text-muted mt-0.5 tracking-[-0.01em]">{STAGES[currentStage - 1].desc}</p>
             </div>
+
+            {/* Answered questions */}
+            {answeredQsInStage.length > 0 && (
+              <div className="space-y-1.5 mb-4 sm:mb-5">
+                {answeredQsInStage.map((q) => (
+                  <AnsweredQuestionCompact
+                    key={q.id}
+                    question={q}
+                    selectedIndex={answers[q.id]!}
+                    onClick={() => handleReAnswer(QUESTIONS.indexOf(q))}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Active question */}
+            <div ref={activeRef} className="animate-slide-in scroll-mt-28 sm:scroll-mt-32" key={currentQ.id}>
+              <div className="mb-4 sm:mb-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-5 h-5 rounded-md bg-section-bg flex items-center justify-center">
+                    <span className="text-[9px] font-bold text-muted/60 tabular-nums">{currentQIdx + 1}</span>
+                  </div>
+                  <div className="h-px flex-1 bg-card-border/40" />
+                </div>
+                <h2 className="text-[15px] sm:text-[17px] font-bold text-foreground leading-snug tracking-[-0.025em]">
+                  {currentQ.title}
+                </h2>
+                {currentQ.description && (
+                  <p className="text-[12px] sm:text-[13px] text-muted mt-1 sm:mt-1.5 leading-relaxed tracking-[-0.01em]">{currentQ.description}</p>
+                )}
+              </div>
+
+              {/* Options */}
+              <div className="space-y-2">
+                {currentQ.options.map((opt, i) => (
+                  <OptionCard
+                    key={i}
+                    option={opt}
+                    selected={answers[currentQ.id] === i}
+                    onClick={() => { if (answers[currentQ.id] === undefined) handleAnswer(i); }}
+                  />
+                ))}
+              </div>
+
+              {/* Tip */}
+              {currentQ.tip && (
+                <div className="mt-4 sm:mt-5 bg-primary-light/40 rounded-lg sm:rounded-xl p-3 sm:p-4 border border-primary/8">
+                  <div className="flex items-start gap-2">
+                    <div className="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#0d95a8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                    </div>
+                    <p className="text-[11px] text-primary-dark/80 leading-relaxed tracking-[-0.01em]">{currentQ.tip}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom safe area spacer */}
+            <div className="h-16 sm:h-20 pb-safe" />
           </div>
         )}
       </div>
