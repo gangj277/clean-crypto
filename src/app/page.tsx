@@ -82,7 +82,7 @@ export default function Home() {
               한 번쯤 의심해본 적 있다면 — 지금 확인해보세요.
             </p>
             <a
-              href="#verify"
+              href="/verify"
               className="group inline-flex items-center gap-2.5 bg-primary text-white font-semibold px-8 py-4 rounded-2xl hover:bg-primary-dark transition-all text-base shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
             >
               내 리딩방 검증하기
@@ -372,7 +372,7 @@ export default function Home() {
             의심이 드는 지금이 가장 빠른 타이밍입니다.
           </p>
           <a
-            href="#verify"
+            href="/verify"
             className="group inline-flex items-center gap-2.5 bg-primary text-white font-semibold px-10 py-4 rounded-2xl hover:bg-primary-dark transition-all text-base shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
           >
             지금 무료로 검증하기
