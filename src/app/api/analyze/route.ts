@@ -4,9 +4,9 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // Validate all 9 answers exist and are valid indices
-    const required = ["q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9"] as const;
-    const maxOptions = [3, 3, 4, 4, 4, 4, 4, 4, 4]; // max option count per question
+    // Validate all 12 answers exist and are valid indices
+    const required = ["q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9", "q10", "q11", "q12"] as const;
+    const maxOptions = [3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]; // max option count per question
 
     for (let i = 0; i < required.length; i++) {
       const key = required[i];
@@ -23,6 +23,7 @@ export async function POST(request: Request) {
       q1: body.q1, q2: body.q2, q3: body.q3,
       q4: body.q4, q5: body.q5, q6: body.q6,
       q7: body.q7, q8: body.q8, q9: body.q9,
+      q10: body.q10, q11: body.q11, q12: body.q12,
     };
 
     const report = await analyzeLeadingRoom(answers);

@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
    Data definitions
    ═══════════════════════════════════════════ */
 
-type QId = "q1" | "q2" | "q3" | "q4" | "q5" | "q6" | "q7" | "q8" | "q9";
+type QId = "q1" | "q2" | "q3" | "q4" | "q5" | "q6" | "q7" | "q8" | "q9" | "q10" | "q11" | "q12";
 type Risk = "safe" | "caution" | "high" | "critical" | "check";
 type Answers = Partial<Record<QId, number>>;
 
@@ -20,7 +20,7 @@ interface Option {
 
 interface QuestionDef {
   id: QId;
-  stage: 1 | 2 | 3;
+  stage: 1 | 2 | 3 | 4;
   title: string;
   description?: string;
   tip?: string;
@@ -28,12 +28,14 @@ interface QuestionDef {
 }
 
 const STAGES = [
-  { id: 1, label: "스캠 판별", desc: "이것만 걸려도 위험합니다" },
-  { id: 2, label: "성과 투명성", desc: "실력인지 연출인지 구분합니다" },
-  { id: 3, label: "운영 행동", desc: "장기적 위험 신호를 확인합니다" },
+  { id: 1, label: "즉시 위험 판별", desc: "이것만 걸려도 위험합니다" },
+  { id: 2, label: "시그널 품질", desc: "시그널 자체가 전문적인지 확인합니다" },
+  { id: 3, label: "성과 투명성", desc: "주장하는 성과가 진짜인지 검증합니다" },
+  { id: 4, label: "운영 행동", desc: "장기적 위험 신호를 확인합니다" },
 ] as const;
 
 const QUESTIONS: QuestionDef[] = [
+  /* ── Stage 1: 즉시 위험 판별 ── */
   {
     id: "q1", stage: 1,
     title: "대리매매 또는 자동매매 권유가 있나요?",
@@ -65,8 +67,48 @@ const QUESTIONS: QuestionDef[] = [
       { label: "잘 모름", risk: "check", note: "확인을 권장합니다" },
     ],
   },
+
+  /* ── Stage 2: 시그널 품질 검증 ── */
   {
     id: "q4", stage: 2,
+    title: "시그널에 손절가(SL)와 목표가(TP)가 포함되나요?",
+    description: "매매 시그널을 공유할 때 진입가, 손절가, 목표가를 구체적으로 제시하나요?",
+    tip: "프로 트레이더는 포지션을 열기 전에 '틀렸을 때 어디서 나올지'를 먼저 정합니다. 손절가가 없는 시그널은 시그널이 아닙니다.",
+    options: [
+      { label: "진입가 + 손절가 + 목표가 모두 제시", risk: "safe", note: "전문적 시그널의 기본 구성" },
+      { label: "대부분 포함하지만 가끔 누락", risk: "caution", note: "일관성 부족 — 확인 필요" },
+      { label: "방향만 제시 (\"롱 가봅시다\")", risk: "high", note: "리스크 정의 불가 — 승률이 의미 없음" },
+      { label: "손절 개념 없음 / \"존버\" 강조", risk: "critical", note: "리스크 관리 부재 — 계좌 전멸 위험" },
+    ],
+  },
+  {
+    id: "q5", stage: 2,
+    title: "권유하는 레버리지 수준은?",
+    description: "선물(Futures) 거래 시 권유하는 레버리지 배수를 선택하세요.",
+    tip: "전문 트레이더는 레버리지 5~10x를 거의 넘지 않습니다. 고레버리지는 방향이 맞아도 작은 변동에 청산당합니다.",
+    options: [
+      { label: "현물 위주 또는 저레버리지 (1~5x)", risk: "safe", note: "안정적 리스크 관리" },
+      { label: "중간 레버리지 (5~20x) + 리스크 안내", risk: "caution", note: "가능하지만 리스크 인지 필요" },
+      { label: "고레버리지 (20x+) 빈번 권유", risk: "high", note: "청산 위험 높음" },
+      { label: "50x 이상 / \"풀레버리지\" 권유", risk: "critical", note: "계좌 파산의 수학적 필연" },
+    ],
+  },
+  {
+    id: "q6", stage: 2,
+    title: "주로 어떤 자산을 다루나요?",
+    description: "운영자가 시그널을 주는 코인의 종류를 선택하세요.",
+    tip: "시가총액이 작은 코인은 소규모 자금으로도 가격 조작이 가능합니다. 운영자가 미리 사두고 시그널로 공유하는 '펌프앤덤프'의 전형적 구조입니다.",
+    options: [
+      { label: "BTC/ETH 등 대형 + 검증된 알트", risk: "safe", note: "조작 어려운 높은 유동성" },
+      { label: "중형 알트 위주 (시총 Top 100 내외)", risk: "caution", note: "대체로 괜찮으나 유동성 확인 필요" },
+      { label: "소형 알트/밈코인 위주", risk: "high", note: "펌프앤덤프 리스크 구조적으로 높음" },
+      { label: "저유동성 토큰 + 특정 코인 집중 푸시", risk: "critical", note: "펌프앤덤프 전형적 패턴" },
+    ],
+  },
+
+  /* ── Stage 3: 성과 투명성 검증 ── */
+  {
+    id: "q7", stage: 3,
     title: "수익인증 방식이 어떤 형태인가요?",
     description: "운영자가 수익을 보여주는 방식을 선택하세요.",
     tip: "\"사전에 공유했는가\" + \"공개 채널이었는가\" — 이 두 가지가 모두 Yes여야 진짜 실력 검증이 됩니다.",
@@ -78,18 +120,18 @@ const QUESTIONS: QuestionDef[] = [
     ],
   },
   {
-    id: "q5", stage: 2,
-    title: "주장하는 승률이 현실적인가요?",
-    tip: "승률 자체보다 \"손익비\"가 중요합니다. 승률만 앞세우는 곳은 본질을 모르거나 일부러 숨기는 것일 수 있습니다.",
+    id: "q8", stage: 3,
+    title: "성과를 어떤 방식으로 표현하나요?",
+    tip: "승률 자체보다 \"손익비\"가 중요합니다. 승률 80%여도 큰 손실 한 번이면 전부 소진됩니다. 승률만 앞세우는 곳은 본질을 모르거나 일부러 숨기는 것입니다.",
     options: [
-      { label: "현실적 범위 (50~70%)", risk: "safe", note: "실전에서 충분히 가능" },
-      { label: "높은 편 (70~85%)", risk: "caution", note: "지속적이라면 검증 필요" },
-      { label: "비현실적 (85% 이상)", risk: "high", note: "장기 유지 거의 불가능" },
-      { label: "90% 이상 주장", risk: "critical", note: "실전에서 불가능한 수치" },
+      { label: "승률 + 손익비 + 전체 수익률 공개", risk: "safe", note: "전문적 성과 보고 방식" },
+      { label: "승률만 공개 (손익비·MDD 언급 없음)", risk: "caution", note: "핵심 지표 누락 — 함정 가능" },
+      { label: "\"몇 배 수익\" / 극적 수치 위주", risk: "high", note: "최고 성과만 선별 — 대표성 없음" },
+      { label: "90%+ 승률 또는 \"원금 보장\" 주장", risk: "critical", note: "실전 불가능 — 사기 또는 조작된 기록" },
     ],
   },
   {
-    id: "q6", stage: 2,
+    id: "q9", stage: 3,
     title: "손실이 난 콜에 대해 어떻게 대응하나요?",
     options: [
       { label: "승리·손실 모두 공개 + 복기", risk: "safe", note: "가장 이상적인 운영" },
@@ -98,8 +140,10 @@ const QUESTIONS: QuestionDef[] = [
       { label: "손실 삭제 / 승리만 남김", risk: "critical", note: "전형적 사기 패턴", redFlag: true },
     ],
   },
+
+  /* ── Stage 4: 운영 행동 분석 ── */
   {
-    id: "q7", stage: 3,
+    id: "q10", stage: 4,
     title: "과시형 콘텐츠가 있나요?",
     description: "슈퍼카, 명품, 현금 다발 등 과시성 콘텐츠가 있나요?",
     options: [
@@ -110,7 +154,7 @@ const QUESTIONS: QuestionDef[] = [
     ],
   },
   {
-    id: "q8", stage: 3,
+    id: "q11", stage: 4,
     title: "회원과 운영자 간 소통은 어떤가요?",
     options: [
       { label: "토론방 있음 (질문·의견 자유)", risk: "safe", note: "건강한 커뮤니티의 기본" },
@@ -120,7 +164,7 @@ const QUESTIONS: QuestionDef[] = [
     ],
   },
   {
-    id: "q9", stage: 3,
+    id: "q12", stage: 4,
     title: "등급 업그레이드 유도가 있나요?",
     description: "무료방 → 유료방 → VIP 같은 등급 구조가 있나요?",
     options: [
@@ -145,6 +189,11 @@ function StageIcon({ stage, size = 16, color }: { stage: number; size?: number; 
     </svg>
   );
   if (stage === 2) return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  );
+  if (stage === 3) return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21.21 15.89A10 10 0 118 2.83" /><path d="M22 12A10 10 0 0012 2v10z" />
     </svg>
@@ -199,9 +248,15 @@ function getRedFlags(answers: Answers): string[] {
   return flags;
 }
 
+const STAGE_WEIGHTS: Record<number, number[]> = {
+  2: [30, 40, 30],  // Q4(구체성), Q5(레버리지 ★), Q6(자산)
+  3: [40, 30, 30],  // Q7(인증방식 ★), Q8(표현), Q9(손실)
+  4: [30, 40, 30],  // Q10(과시), Q11(소통 ★), Q12(등급)
+};
+
 function scoreStage(answers: Answers, stage: number): number {
   const qs = QUESTIONS.filter((q) => q.stage === stage);
-  const weights = stage === 2 ? [40, 30, 30] : [30, 40, 30];
+  const weights = STAGE_WEIGHTS[stage] ?? [34, 33, 33];
   let total = 0;
   qs.forEach((q, i) => {
     const idx = answers[q.id];
@@ -469,12 +524,13 @@ function FinalLoading() {
         </div>
       </div>
       <h2 className="text-lg sm:text-xl font-bold text-foreground mb-2 tracking-[-0.03em]">종합 분석 진행 중</h2>
-      <p className="text-muted text-[13px] sm:text-sm mb-6 sm:mb-8 tracking-[-0.01em]">3개 영역을 교차 분석하고 있습니다</p>
+      <p className="text-muted text-[13px] sm:text-sm mb-6 sm:mb-8 tracking-[-0.01em]">4개 영역을 교차 분석하고 있습니다</p>
       <div className="w-full max-w-xs space-y-2.5 sm:space-y-3">
         {[
-          { label: "스캠 판별 완료", icon: 1 },
-          { label: "성과 투명성 분석", icon: 2 },
-          { label: "운영 행동 대조", icon: 3 },
+          { label: "즉시 위험 판별 완료", icon: 1 },
+          { label: "시그널 품질 분석", icon: 2 },
+          { label: "성과 투명성 검증", icon: 3 },
+          { label: "운영 행동 대조", icon: 4 },
           { label: "종합 리포트 생성", icon: 0 },
         ].map((s, i) => (
           <div key={s.label} className="flex items-center gap-3 animate-fade-in" style={{ animationDelay: `${i * 600}ms` }}>
@@ -554,7 +610,7 @@ export default function VerifyPage() {
   }, []);
 
   const handleContinueToNextStage = useCallback(async () => {
-    if (currentStage >= 3) {
+    if (currentStage >= 4) {
       setPhase("final-loading");
 
       // Build full answer payload (merge client-side answers into q1-q9 shape)
@@ -600,7 +656,7 @@ export default function VerifyPage() {
           <a href="/" className="font-bold text-foreground tracking-[-0.03em] text-[15px]">Clean Crypto</a>
           <div className="flex items-center gap-2.5 sm:gap-3">
             <div className="flex items-center gap-1">
-              {[1, 2, 3].map((s) => {
+              {[1, 2, 3, 4].map((s) => {
                 const done = completedAnalyses.some((a) => a.stage === s);
                 const active = s === currentStage && !done;
                 return (
@@ -608,7 +664,7 @@ export default function VerifyPage() {
                 );
               })}
             </div>
-            <span className="text-[11px] text-muted font-medium tabular-nums">{totalAnswered}/9</span>
+            <span className="text-[11px] text-muted font-medium tabular-nums">{totalAnswered}/12</span>
           </div>
         </div>
       </header>
@@ -693,7 +749,7 @@ export default function VerifyPage() {
               onClick={handleContinueToNextStage}
               className="group w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl bg-primary text-white font-semibold text-[14px] flex items-center justify-center gap-2 hover:bg-primary-dark transition-all shadow-lg shadow-primary/12 cursor-pointer active:scale-[0.98] tracking-[-0.02em] min-h-[48px]"
             >
-              {currentStage >= 3 ? (
+              {currentStage >= 4 ? (
                 <>
                   종합 분석 시작
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
